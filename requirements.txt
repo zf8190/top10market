@@ -13,11 +13,3 @@ pytest
 alembic
 # For asynchronous database operations
 asyncpg
-# For handling CORS in FastAPI
-fastapi-cors
-# For handling background tasks in FastAPI
-fastapi-background
-# For handling JSON Web Tokens
-python-jose
-# For handling environment variables
-python-dotenv
