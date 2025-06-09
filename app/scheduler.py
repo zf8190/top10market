@@ -3,10 +3,10 @@ from apscheduler.triggers.cron import CronTrigger
 from datetime import datetime
 import asyncio
 
+from app.services.archiving import archive_articles
 from app.services.article_ai import (
-    archive_articles,
     generate_daily_articles,
-    update_articles_hourly,
+    update_articles_hourly
 )
 from app.services.feed_ingestion import update_feed
 
