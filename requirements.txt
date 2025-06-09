@@ -13,3 +13,4 @@ pytest
 alembic
 # For asynchronous database operations
 asyncpg
+jinja2
