@@ -9,8 +9,12 @@ from app.db import get_db
 from app.models.article import Article
 from app.models.team import Team
 from app.config import STATIC_URL
+from app.api.jobs import router as jobs_router
 
 app = FastAPI()
+
+app.include_router(jobs_router, prefix="/api")
+
 
 # Monta la cartella static per CSS, immagini, ecc.
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
