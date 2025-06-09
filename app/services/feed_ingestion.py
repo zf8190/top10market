@@ -1,38 +1,30 @@
 import feedparser
 from sqlalchemy.orm import Session
 from app.models.feed import Feed
+from app.config import load_rss_feeds
 import datetime
 
-# Lista RSS da leggere (puoi metterla in config se vuoi)
-RSS_FEEDS = [
-    "https://www.gazzetta.it/rss/calciomercato.xml",
-    "https://sport.sky.it/rss/calciomercato",
-    # aggiungi altre fonti RSS
-]
-
 def ingest_feeds(db: Session):
+    rss_urls = load_rss_feeds()
     new_count = 0
 
-    for rss_url in RSS_FEEDS:
+    for rss_url in rss_urls:
         d = feedparser.parse(rss_url)
-        feed_source = rss_url  # puoi mappare il nome reale se vuoi
+        feed_source = rss_url  # puoi usare un mapping se vuoi un nome più leggibile
 
         for entry in d.entries:
-            # Usare link come feed_entry_id univoco (o guid se presente)
+            # ID univoco del feed
             feed_entry_id = getattr(entry, "id", None) or entry.link
 
-            # Controlla duplicati
-            existing = db.query(Feed).filter(Feed.feed_entry_id == feed_entry_id).first()
-            if existing:
+            # Evita duplicati
+            if db.query(Feed).filter(Feed.feed_entry_id == feed_entry_id).first():
                 continue
 
-            # Parsing campi, adattati a seconda del feed
-            title = entry.title if "title" in entry else ""
-            link = entry.link if "link" in entry else ""
-            summary = entry.summary if "summary" in entry else ""
+            title = getattr(entry, "title", "")
+            link = getattr(entry, "link", "")
+            summary = getattr(entry, "summary", "")
             content = entry.get("content", [{"value": ""}])[0]["value"] if "content" in entry else summary
 
-            # published_at parsing, fallback a ora corrente
             try:
                 published_at = datetime.datetime(*entry.published_parsed[:6])
             except Exception:
@@ -48,6 +40,7 @@ def ingest_feeds(db: Session):
                 published_at=published_at,
                 processed=False
             )
+
             db.add(new_feed)
             new_count += 1
 
