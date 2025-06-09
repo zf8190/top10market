@@ -5,8 +5,8 @@ import asyncio
 
 from app.services.archiving import archive_articles
 from app.services.article_ai import (
-    generate_daily_articles,
-    update_articles_hourly
+    generate_article_content,
+    update_article_content
 )
 from app.services.feed_ingestion import update_feed
 
@@ -35,7 +35,7 @@ async def daily_morning_job():
     success = await archive_articles()
     if success:
         # Genera nuovi articoli (basandosi su tutti i feed)
-        await generate_daily_articles()
+        await generate_article_content()
         # Aggiorna feed (legge feed nuovi e li inserisce)
         await update_feed()
     print(f"[{datetime.now()}] Daily morning job finished.")
@@ -43,7 +43,7 @@ async def daily_morning_job():
 async def hourly_update_job():
     print(f"[{datetime.now()}] Starting hourly update job...")
     # Aggiorna articoli (solo quelli con nuovi feed)
-    await update_articles_hourly()
+    await update_article_content()
     # Aggiorna feed (legge nuovi feed)
     await update_feed()
     print(f"[{datetime.now()}] Hourly update job finished.")
