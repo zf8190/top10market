@@ -14,4 +14,4 @@ class Article(Base):
     sources = Column(Text, nullable=True)  # Fonti consultate, testo libero o JSON string
     last_updated = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    team = relationship("Team", back_populates="articles")
+    team = relationship("Team", back_populates="article")
