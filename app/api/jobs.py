@@ -28,15 +28,3 @@ async def run_hourly_update_job(background_tasks: BackgroundTasks):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-from app.scripts.init_db import initialize_database  # Importa la funzione di inizializzazione
-
-@router.get("/jobs/init-db")
-async def run_init_db_job(background_tasks: BackgroundTasks):
-    """
-    Avvia l'inizializzazione del database in background.
-    """
-    try:
-        background_tasks.add_task(initialize_database)
-        return {"status": "started", "job": "init_db", "started_at": str(datetime.utcnow())}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
