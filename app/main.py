@@ -10,7 +10,8 @@ from app.models.article import Article
 from app.models.team import Team
 from app.config import STATIC_URL
 from app.api.jobs import router as jobs_router
-
+from app.models import Base
+from app.db import get_engine
 app = FastAPI()
 
 app.include_router(jobs_router, prefix="/api")
