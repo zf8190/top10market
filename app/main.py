@@ -3,34 +3,32 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
-from app.db import get_db
+from app.db import get_db, get_engine
 from app.models.article import Article
 from app.models.team import Team
 from app.config import STATIC_URL
 from app.api.jobs import router as jobs_router
 from app.models import Base
-from app.db import get_engine
+
 app = FastAPI()
 
 app.include_router(jobs_router, prefix="/api")
 
-
-# Monta la cartella static per CSS, immagini, ecc.
+# Static files (CSS, immagini, ecc.)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
-# Configura i template Jinja2
+# Jinja2 templates
 templates = Jinja2Templates(directory="app/templates")
 
 @app.get("/", response_class=HTMLResponse)
-def read_home(request: Request, db: Session = Depends(get_db)):
-    articles = (
-        db.query(Article)
-        .join(Team)
-        .order_by(Team.name)
-        .all()
+async def read_home(request: Request, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(Article).join(Team).order_by(Team.name)
     )
+    articles = result.scalars().all()
     return templates.TemplateResponse(
         "index.html",
         {
@@ -41,13 +39,12 @@ def read_home(request: Request, db: Session = Depends(get_db)):
     )
 
 @app.get("/team/{team_name}", response_class=HTMLResponse)
-def read_article(team_name: str, request: Request, db: Session = Depends(get_db)):
-    article = (
-        db.query(Article)
-        .join(Team)
-        .filter(Team.name.ilike(team_name))
-        .first()
+async def read_article(team_name: str, request: Request, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(Article).join(Team).where(Team.name.ilike(team_name))
     )
+    article = result.scalars().first()
+
     if not article:
         raise HTTPException(status_code=404, detail="Articolo non trovato")
 

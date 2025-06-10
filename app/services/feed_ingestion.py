@@ -1,23 +1,27 @@
+# app/services/feed_ingestion.py
+
 import feedparser
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 from app.models.feed import Feed
 from app.config import load_rss_feeds
 import datetime
 
-def ingest_feeds(db: Session):
+async def ingest_feeds(db: AsyncSession):
     rss_urls = load_rss_feeds()
     new_count = 0
 
     for rss_url in rss_urls:
         d = feedparser.parse(rss_url)
-        feed_source = rss_url  # puoi usare un mapping se vuoi un nome più leggibile
+        feed_source = rss_url
 
         for entry in d.entries:
-            # ID univoco del feed
             feed_entry_id = getattr(entry, "id", None) or entry.link
 
             # Evita duplicati
-            if db.query(Feed).filter(Feed.feed_entry_id == feed_entry_id).first():
+            result = await db.execute(select(Feed).where(Feed.feed_entry_id == feed_entry_id))
+            existing = result.scalars().first()
+            if existing:
                 continue
 
             title = getattr(entry, "title", "")
@@ -44,5 +48,5 @@ def ingest_feeds(db: Session):
             db.add(new_feed)
             new_count += 1
 
-    db.commit()
+    await db.commit()
     print(f"[FeedIngestion] Inseriti {new_count} nuovi feed.")

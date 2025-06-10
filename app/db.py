@@ -1,36 +1,30 @@
+# app/db/session.py
+
 import os
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.exc import SQLAlchemyError
 from dotenv import load_dotenv
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.orm import declarative_base
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL")  # Es: postgresql://user:pass@host:port/dbname
-
+DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL non impostato nelle variabili ambiente")
 
-# Creiamo il motore di connessione
-engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+# 🔁 Assicurati che l'URL inizi con "postgresql+asyncpg://" se usi PostgreSQL
+if DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 
-# Factory per sessioni DB
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# 🔌 Async engine
+engine = create_async_engine(DATABASE_URL, pool_pre_ping=True)
 
-# Base declarativa, importata poi in models/__init__.py
-from sqlalchemy.orm import declarative_base
+# 🏭 Async session maker
+async_session = async_sessionmaker(bind=engine, expire_on_commit=False, class_=AsyncSession)
+
+# 🧱 Base dichiarativa
 Base = declarative_base()
 
-def get_engine():
-    return engine
-
-def get_db():
-    """
-    Dependency da usare in FastAPI o similari per ottenere una sessione DB.
-    In Flask si può gestire diversamente.
-    """
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+# 🔁 Dipendenza asincrona per FastAPI
+async def get_db():
+    async with async_session() as session:
+        yield session

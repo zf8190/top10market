@@ -1,43 +1,32 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from sqlalchemy import delete, func
 from app.models.team import Team
 
-def get_all_teams(db: Session):
-    """
-    Restituisce la lista di tutte le squadre ordinate per id.
-    """
-    return db.query(Team).order_by(Team.id).all()
+async def get_all_teams(db: AsyncSession):
+    result = await db.execute(select(Team).order_by(Team.id))
+    return result.scalars().all()
 
-def get_team_by_name(db: Session, name: str):
-    """
-    Recupera una squadra dal database tramite il nome (case insensitive).
-    """
-    return db.query(Team).filter(Team.name.ilike(name)).first()
+async def get_team_by_name(db: AsyncSession, name: str):
+    result = await db.execute(
+        select(Team).filter(Team.name.ilike(name))
+    )
+    return result.scalars().first()
 
-def update_teams_list(db: Session, new_teams: list):
-    """
-    Aggiorna la lista delle squadre top10.
-    Cancella le vecchie squadre e inserisce le nuove.
-
-    Args:
-        db: sessione DB
-        new_teams: lista di dict, esempio:
-            [
-                {"name": "Napoli", "logo_url": "https://..."},
-                ...
-            ]
-    """
+async def update_teams_list(db: AsyncSession, new_teams: list):
     # Elimina tutte le squadre esistenti
-    db.query(Team).delete()
-    db.commit()
+    await db.execute(delete(Team))
+    await db.commit()
 
     # Inserisce le nuove squadre
     for team_data in new_teams:
         team = Team(name=team_data['name'], logo_url=team_data['logo_url'])
         db.add(team)
-    db.commit()
+    await db.commit()
 
-def team_exists(db: Session, name: str) -> bool:
-    """
-    Verifica se una squadra esiste già nel DB.
-    """
-    return db.query(Team).filter(Team.name.ilike(name)).count() > 0
+async def team_exists(db: AsyncSession, name: str) -> bool:
+    result = await db.execute(
+        select(func.count()).select_from(Team).filter(Team.name.ilike(name))
+    )
+    count = result.scalar_one()
+    return count > 0

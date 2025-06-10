@@ -1,8 +1,8 @@
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from datetime import datetime
-import asyncio
 
+from app.db import async_session
 from app.services.archiving import archive_articles
 from app.services.article_ai import (
     generate_article_content,
@@ -32,26 +32,23 @@ def schedule_jobs():
 async def daily_morning_job():
     print(f"[{datetime.now()}] Starting daily morning job...")
 
-    # Archivia articoli precedenti
-    success = await archive_articles()
-    if success:
-        # Ingest nuovi feed
-        await ingest_feeds()
-        print(f"[{datetime.now()}] New feeds ingested successfully.")
+    async with async_session() as db:
+        success = await archive_articles(db)
+        if success:
+            await ingest_feeds(db)
+            print(f"[{datetime.now()}] New feeds ingested successfully.")
 
-        # Genera nuovi articoli
-        await generate_article_content()
+            await generate_article_content(db)
 
     print(f"[{datetime.now()}] Daily morning job finished.")
 
 async def hourly_update_job():
     print(f"[{datetime.now()}] Starting hourly update job...")
 
-    # Ingest nuovi feed
-    await ingest_feeds()
-    print(f"[{datetime.now()}] New feeds ingested successfully.")
+    async with async_session() as db:
+        await ingest_feeds(db)
+        print(f"[{datetime.now()}] New feeds ingested successfully.")
 
-    # Aggiorna articoli
-    await update_article_content()
+        await update_article_content(db)
 
     print(f"[{datetime.now()}] Hourly update job finished.")

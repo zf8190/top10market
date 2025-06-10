@@ -1,6 +1,7 @@
 import os
 from typing import List
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 from app.models.feed import Feed
 from app.models.article import Article
 import openai
@@ -55,7 +56,10 @@ def update_article_content(old_content: str, new_feeds: List[Feed]) -> dict:
     except json.JSONDecodeError:
         return {"title": "Aggiornamenti Calciomercato", "content": response.choices[0].message.content}
 
-def generate_daily_articles(db: Session):
+
+# --- QUI FUNZIONI ASINCRONE CON DB ---
+
+async def generate_daily_articles(db: AsyncSession):
     """
     Funzione da chiamare alle 8:00 AM.
     Legge tutti i feed del giorno (o non processati),
@@ -64,8 +68,9 @@ def generate_daily_articles(db: Session):
     Marca tutti i feed come processati.
     """
     now = datetime.datetime.now()
-    # Leggi tutti i feed non processati
-    new_feeds = db.query(Feed).filter(Feed.processed == False).all()
+
+    result = await db.execute(select(Feed).filter(Feed.processed == False))
+    new_feeds = result.scalars().all()
     if not new_feeds:
         print("Nessun feed nuovo da processare per la generazione giornaliera.")
         return
@@ -77,7 +82,10 @@ def generate_daily_articles(db: Session):
 
     for team_id, feeds_list in feeds_by_team.items():
         article_data = generate_article_content(feeds_list)
-        article = db.query(Article).filter(Article.team_id == team_id).first()
+
+        result = await db.execute(select(Article).filter(Article.team_id == team_id))
+        article = result.scalars().first()
+
         if article:
             article.title = article_data.get("title", article.title)
             article.content = article_data.get("content", article.content)
@@ -99,9 +107,9 @@ def generate_daily_articles(db: Session):
         for f in feeds_list:
             f.processed = True
 
-    db.commit()
+    await db.commit()
 
-def update_hourly_articles(db: Session):
+async def update_hourly_articles(db: AsyncSession):
     """
     Funzione da chiamare ogni ora dalle 9 in poi.
     Legge solo i nuovi feed non processati,
@@ -109,7 +117,9 @@ def update_hourly_articles(db: Session):
     marca i feed come processati.
     """
     now = datetime.datetime.now()
-    new_feeds = db.query(Feed).filter(Feed.processed == False).all()
+
+    result = await db.execute(select(Feed).filter(Feed.processed == False))
+    new_feeds = result.scalars().all()
     if not new_feeds:
         print("Nessun feed nuovo da processare per aggiornamento orario.")
         return
@@ -119,7 +129,9 @@ def update_hourly_articles(db: Session):
         feeds_by_team.setdefault(f.team_id, []).append(f)
 
     for team_id, feeds_list in feeds_by_team.items():
-        article = db.query(Article).filter(Article.team_id == team_id).first()
+        result = await db.execute(select(Article).filter(Article.team_id == team_id))
+        article = result.scalars().first()
+
         if article:
             article_data = update_article_content(article.content, feeds_list)
             article.title = article_data.get("title", article.title)
@@ -130,7 +142,6 @@ def update_hourly_articles(db: Session):
             new_sources = set([f.feed_source for f in feeds_list])
             article.sources = ", ".join(existing_sources.union(new_sources))
         else:
-            # Se non c’è articolo precedente, creiamo uno nuovo (possibile)
             article_data = generate_article_content(feeds_list)
             article = Article(
                 team_id=team_id,
@@ -145,4 +156,4 @@ def update_hourly_articles(db: Session):
         for f in feeds_list:
             f.processed = True
 
-    db.commit()
+    await db.commit()

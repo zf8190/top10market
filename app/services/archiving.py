@@ -1,10 +1,9 @@
-# Daily archiving logic
 import datetime
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.article import Article
 from app.models.article_history import ArticleHistory
 
-def archive_articles(db: Session):
+async def archive_articles(db: AsyncSession):
     """
     Archivia tutti gli articoli correnti nella tabella ArticleHistory.
     Se l’archiviazione va a buon fine, elimina gli articoli correnti.
@@ -12,7 +11,8 @@ def archive_articles(db: Session):
     today = datetime.date.today()
     archive_date = today - datetime.timedelta(days=1)
 
-    articles = db.query(Article).all()
+    result = await db.execute(select(Article))
+    articles = result.scalars().all()
 
     for art in articles:
         archived = ArticleHistory(
@@ -27,11 +27,11 @@ def archive_articles(db: Session):
         db.add(archived)
 
     try:
-        db.commit()
+        await db.commit()
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise e
 
     # Solo se commit ha avuto successo:
-    db.query(Article).delete()
-    db.commit()
+    await db.execute(delete(Article))
+    await db.commit()
