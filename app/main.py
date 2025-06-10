@@ -9,12 +9,20 @@ from sqlalchemy.future import select
 from app.db import get_db, get_engine
 from app.models.article import Article
 from app.models.team import Team
+from app.models import Base  # Assicura che importi Base con i modelli collegati
 from app.config import STATIC_URL
 from app.api.jobs import router as jobs_router
-from app.models import Base
 
 app = FastAPI()
 
+# Inizializza le tabelle al primo avvio
+@app.on_event("startup")
+async def startup_event():
+    async with get_engine().begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    print("✅ Tabelle del database create (se non esistevano)")
+
+# Includi le rotte API
 app.include_router(jobs_router, prefix="/api")
 
 # Static files (CSS, immagini, ecc.)
