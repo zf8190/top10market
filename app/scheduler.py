@@ -31,19 +31,27 @@ def schedule_jobs():
 
 async def daily_morning_job():
     print(f"[{datetime.now()}] Starting daily morning job...")
+
     # Archivia articoli precedenti
     success = await archive_articles()
     if success:
-        # Genera nuovi articoli (basandosi su tutti i feed)
+        # Ingest nuovi feed
         await ingest_feeds()
-        print(f"[{datetime.now()}] New feeds ingested successfully.")   
+        print(f"[{datetime.now()}] New feeds ingested successfully.")
+
+        # Genera nuovi articoli
         await generate_article_content()
+
     print(f"[{datetime.now()}] Daily morning job finished.")
 
 async def hourly_update_job():
     print(f"[{datetime.now()}] Starting hourly update job...")
-        # Aggiorna articoli (solo quelli con nuovi feed)
-        await ingest_feeds()
-        print(f"[{datetime.now()}] New feeds ingested successfully.")   
-        await update_article_content()
+
+    # Ingest nuovi feed
+    await ingest_feeds()
+    print(f"[{datetime.now()}] New feeds ingested successfully.")
+
+    # Aggiorna articoli
+    await update_article_content()
+
     print(f"[{datetime.now()}] Hourly update job finished.")
