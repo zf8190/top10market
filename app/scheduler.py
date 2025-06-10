@@ -8,7 +8,7 @@ from app.services.article_ai import (
     generate_article_content,
     update_article_content
 )
-from app.services.feed_ingestion import update_feed
+from app.services.feed_ingestion import ingest_feeds
 
 scheduler = AsyncIOScheduler()
 
@@ -35,15 +35,15 @@ async def daily_morning_job():
     success = await archive_articles()
     if success:
         # Genera nuovi articoli (basandosi su tutti i feed)
+        await ingest_feeds()
+        print(f"[{datetime.now()}] New feeds ingested successfully.")   
         await generate_article_content()
-        # Aggiorna feed (legge feed nuovi e li inserisce)
-        await update_feed()
     print(f"[{datetime.now()}] Daily morning job finished.")
 
 async def hourly_update_job():
     print(f"[{datetime.now()}] Starting hourly update job...")
-    # Aggiorna articoli (solo quelli con nuovi feed)
-    await update_article_content()
-    # Aggiorna feed (legge nuovi feed)
-    await update_feed()
+        # Aggiorna articoli (solo quelli con nuovi feed)
+        await ingest_feeds()
+        print(f"[{datetime.now()}] New feeds ingested successfully.")   
+        await update_article_content()
     print(f"[{datetime.now()}] Hourly update job finished.")
