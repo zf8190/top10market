@@ -3,9 +3,10 @@ import json
 import datetime
 from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, insert
 from app.models.feed import Feed
 from app.models.article import Article
+from app.models.team import Team
 from app.models.feed_per_team import feed_per_teams  # la tabella many-to-many
 
 import openai
@@ -62,10 +63,64 @@ def update_article_content(old_content: str, new_feeds: List[Feed]) -> dict:
         return {"title": "Aggiornamenti Calciomercato", "content": response.choices[0].message.content}
 
 
+# ---------- Funzione di associazione feed-team ----------
+
+async def associate_feeds_to_teams(db: AsyncSession):
+    """
+    Associa i feed non processati ai team basandosi sul matching del nome del team nel titolo o contenuto del feed.
+    Inserisce i record nella tabella feed_per_teams se non esistono già.
+    """
+    # Prendi tutti i feed non processati
+    result = await db.execute(select(Feed).filter(Feed.processed == False))
+    feeds = result.scalars().all()
+
+    if not feeds:
+        print("[associate_feeds_to_teams] Nessun feed non processato da associare.")
+        return
+
+    # Prendi tutti i team
+    result = await db.execute(select(Team))
+    teams = result.scalars().all()
+
+    # Mappa feed_id -> set(team_id)
+    feed_team_map = {}
+
+    for feed in feeds:
+        feed_text = f"{feed.title} {feed.content}".lower()
+        associated_team_ids = set()
+
+        for team in teams:
+            team_name_lower = team.name.lower()
+            if team_name_lower in feed_text:
+                associated_team_ids.add(team.id)
+
+        feed_team_map[feed.id] = associated_team_ids
+
+    # Inserisci le associazioni in feed_per_teams se non già esistenti
+    for feed_id, team_ids in feed_team_map.items():
+        for team_id in team_ids:
+            # Verifica se esiste già associazione
+            stmt_check = select(feed_per_teams).where(
+                (feed_per_teams.c.feed_id == feed_id) &
+                (feed_per_teams.c.team_id == team_id)
+            )
+            result = await db.execute(stmt_check)
+            exists = result.first()
+            if not exists:
+                stmt_insert = insert(feed_per_teams).values(feed_id=feed_id, team_id=team_id)
+                await db.execute(stmt_insert)
+
+    await db.commit()
+    print(f"[associate_feeds_to_teams] Associazioni create per {len(feeds)} feed.")
+
+
 # ---------- Funzioni principali ----------
 
 async def generate_daily_articles(db: AsyncSession):
     now = datetime.datetime.now()
+
+    # Prima associa le feeds ai team
+    await associate_feeds_to_teams(db)
 
     result = await db.execute(select(Feed).filter(Feed.processed == False))
     new_feeds = result.scalars().all()
@@ -118,6 +173,9 @@ async def generate_daily_articles(db: AsyncSession):
 
 async def update_hourly_articles(db: AsyncSession):
     now = datetime.datetime.now()
+
+    # Prima associa le feeds ai team
+    await associate_feeds_to_teams(db)
 
     result = await db.execute(select(Feed).filter(Feed.processed == False))
     new_feeds = result.scalars().all()

@@ -9,6 +9,7 @@ from app.services.article_ai import (
     update_hourly_articles
 )
 from app.services.feed_ingestion import ingest_feeds
+from app.services.article_ai import associate_feeds_to_teams
 
 scheduler = AsyncIOScheduler()
 
@@ -33,6 +34,8 @@ async def daily_morning_job():
         
         await ingest_feeds(db)
         print(f"[{datetime.now()}] New feeds ingested successfully.")
+        await associate_feeds_to_teams(db)
+
         await generate_daily_articles(db)  # CORRETTO
 
     print(f"[{datetime.now()}] Daily morning job finished.")
@@ -41,6 +44,9 @@ async def hourly_update_job():
     print(f"[{datetime.now()}] Starting hourly update job...")
     async with async_session() as db:
         await ingest_feeds(db)
+
+        await associate_feeds_to_teams(db)
+
         print(f"[{datetime.now()}] New feeds ingested successfully.")
         await update_hourly_articles(db)  # CORRETTO
 
