@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, Text, TIMESTAMP, ForeignKey
 from sqlalchemy.sql import func
-from app.db import Base
+from app.models.base import Base
+
 
 class ArticleHistory(Base):
     __tablename__ = "article_history"

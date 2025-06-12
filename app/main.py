@@ -11,7 +11,7 @@ import os
 from app.db import get_db, get_engine
 from app.models.article import Article
 from app.models.team import Team
-from app.models import Base  # Assicura che importi Base con i modelli collegati
+from app.models.base import Base
 from app.config import STATIC_URL
 from app.api.jobs import router as jobs_router
 

@@ -1,7 +1,4 @@
-from sqlalchemy.orm import declarative_base
-
-Base = declarative_base()
-
+from .base import Base  # unica fonte di verità per Base
 from .team import Team
 from .feed import Feed
 from .article import Article

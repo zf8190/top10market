@@ -1,7 +1,8 @@
 # init_db.py
+
 import asyncio
 from app.db import get_engine
-from app.models import Base  # Questo importa tutto il necessario
+from app.models.base import Base
 
 async def init_db():
     engine = get_engine()

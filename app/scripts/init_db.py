@@ -3,7 +3,8 @@ from sqlalchemy.orm import sessionmaker
 from app.models.team import Team
 from app.models.article import Article
 from app.models.article_history import ArticleHistory
-from app.db import Base, get_engine
+from app.db import get_engine
+from app.models import Base
 from dotenv import load_dotenv
 
 load_dotenv()

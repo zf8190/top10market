@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Text, Boolean, TIMESTAMP
 from sqlalchemy.sql import func
-from app.db import Base
+from app.models.base import Base
 
 class Feed(Base):
     __tablename__ = "feeds"

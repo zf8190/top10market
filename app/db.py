@@ -4,7 +4,6 @@ import os
 import ssl
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from sqlalchemy.orm import declarative_base
 
 # Carica .env se presente
 load_dotenv()
@@ -18,12 +17,12 @@ if not DATABASE_URL:
 if DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 
-# Se siamo su Railway o altro ambiente SSL self-signed
+# Configura SSL per Railway
 connect_args = {}
 if "railway" in DATABASE_URL:
     ssl_context = ssl.create_default_context()
     ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.CERT_NONE  # <-- ACCETTA CERTIFICATI SELF-SIGNED
+    ssl_context.verify_mode = ssl.CERT_NONE
     connect_args = {"ssl": ssl_context}
 
 # Crea il motore async
@@ -31,9 +30,6 @@ engine = create_async_engine(DATABASE_URL, pool_pre_ping=True, connect_args=conn
 
 # Session factory
 async_session = async_sessionmaker(bind=engine, expire_on_commit=False, class_=AsyncSession)
-
-# Base dichiarativa
-Base = declarative_base()
 
 # Dependency FastAPI
 async def get_db():
