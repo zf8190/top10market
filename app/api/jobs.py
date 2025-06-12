@@ -1,36 +1,55 @@
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from datetime import datetime
-import asyncio
 
-from app.scheduler import daily_morning_job, hourly_update_job, archive_articles_job
+from app.scheduler import (
+    archive_articles_job,
+    process_unprocessed_feeds_job,
+    ingest_and_associate_job
+)
 
 router = APIRouter()
 
-@router.get("/jobs/daily-morning")
-async def run_daily_morning_job(background_tasks: BackgroundTasks):
-    """
-    Avvia il job schedulato giornaliero in background.
-    """
-    try:
-        background_tasks.add_task(daily_morning_job)
-        return {"status": "started", "job": "daily_morning_job", "started_at": str(datetime.utcnow())}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/jobs/hourly-update")
-async def run_hourly_update_job(background_tasks: BackgroundTasks):
-    """
-    Avvia il job schedulato orario in background.
-    """
-    try:
-        background_tasks.add_task(hourly_update_job)
-        return {"status": "started", "job": "hourly_update_job", "started_at": str(datetime.utcnow())}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 @router.get("/jobs/archive")
-async def archive_articles_job():
-    print(f"[{datetime.now()}] Starting archive articles job...")
-    async with async_session() as db:
-        success = await archive_articles(db)
-    print(f"[{datetime.now()}] Archive articles job finished.")
+async def run_archive_articles_job(background_tasks: BackgroundTasks):
+    """
+    Avvia il job di archiviazione articoli schedulato in background.
+    """
+    try:
+        background_tasks.add_task(archive_articles_job)
+        return {
+            "status": "started",
+            "job": "archive_articles_job",
+            "started_at": str(datetime.utcnow())
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/jobs/process-feeds")
+async def run_process_unprocessed_feeds_job(background_tasks: BackgroundTasks):
+    """
+    Avvia il job di processamento feed non processati schedulato in background.
+    """
+    try:
+        background_tasks.add_task(process_unprocessed_feeds_job)
+        return {
+            "status": "started",
+            "job": "process_unprocessed_feeds_job",
+            "started_at": str(datetime.utcnow())
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/jobs/ingest-associate")
+async def run_ingest_and_associate_job(background_tasks: BackgroundTasks):
+    """
+    Avvia il job di ingestione e associazione feed a team schedulato in background.
+    """
+    try:
+        background_tasks.add_task(ingest_and_associate_job)
+        return {
+            "status": "started",
+            "job": "ingest_and_associate_job",
+            "started_at": str(datetime.utcnow())
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

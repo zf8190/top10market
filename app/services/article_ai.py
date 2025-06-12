@@ -1,22 +1,21 @@
 import os
 import json
-import datetime
-from typing import List
+from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, insert
+from sqlalchemy.orm import selectinload
 from app.models.feed import Feed
 from app.models.article import Article
 from app.models.team import Team
-from app.models.feed_per_team import feed_per_teams  # la tabella many-to-many
-
+from app.models.feed_per_team import feed_per_teams  # tabella many-to-many
 import openai
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 MODEL = "gpt-3.5-turbo"
 
-# ---------- Funzioni AI ----------
+# ---------- Funzioni AI async ----------
 
-def generate_article_content(feeds: List[Feed]) -> dict:
+async def generate_article_content(feeds: List[Feed]) -> dict:
     combined_text = "\n\n".join([f"Titolo: {f.title}\nTesto: {f.content}" for f in feeds])
     prompt = (
         "Sei un esperto giornalista sportivo.\n"
@@ -26,20 +25,19 @@ def generate_article_content(feeds: List[Feed]) -> dict:
         f"Feed:\n{combined_text}\n\n"
         "Rispondi in formato JSON con due campi: 'title' e 'content'."
     )
-
-    response = openai.chat.completions.create(
-        model=MODEL,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.7,
-        max_tokens=1000
-    )
     try:
+        response = await openai.ChatCompletion.acreate(
+            model=MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7,
+            max_tokens=1000
+        )
         return json.loads(response.choices[0].message.content)
-    except json.JSONDecodeError:
-        return {"title": "Aggiornamenti Calciomercato", "content": response.choices[0].message.content}
+    except Exception as e:
+        print(f"[generate_article_content] Errore OpenAI: {e}")
+        return {"title": "Aggiornamenti Calciomercato", "content": "Errore nella generazione dell'articolo."}
 
-
-def update_article_content(old_content: str, new_feeds: List[Feed]) -> dict:
+async def update_article_content(old_content: str, new_feeds: List[Feed]) -> dict:
     combined_new_text = "\n\n".join([f"Titolo: {f.title}\nTesto: {f.content}" for f in new_feeds])
     prompt = (
         "Sei un esperto giornalista sportivo.\n"
@@ -50,238 +48,102 @@ def update_article_content(old_content: str, new_feeds: List[Feed]) -> dict:
         f"Nuove notizie:\n{combined_new_text}\n\n"
         "Rispondi in formato JSON con 'title' e 'content' aggiornati."
     )
-
-    response = openai.chat.completions.create(
-        model=MODEL,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.7,
-        max_tokens=1000
-    )
     try:
+        response = await openai.ChatCompletion.acreate(
+            model=MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7,
+            max_tokens=1000
+        )
         return json.loads(response.choices[0].message.content)
-    except json.JSONDecodeError:
-        return {"title": "Aggiornamenti Calciomercato", "content": response.choices[0].message.content}
+    except Exception as e:
+        print(f"[update_article_content] Errore OpenAI: {e}")
+        return {"title": "Aggiornamenti Calciomercato", "content": old_content}
 
-
-# ---------- Funzione di associazione feed-team ----------
+# ---------- Associazione feed-team ----------
 
 async def associate_feeds_to_teams(db: AsyncSession):
-    """
-    Associa i feed non processati ai team basandosi sul matching del nome del team nel titolo o contenuto del feed.
-    Inserisce i record nella tabella feed_per_teams se non esistono già.
-    """
-    # Prendi tutti i feed non processati
-    result = await db.execute(select(Feed).filter(Feed.processed == False))
+    result = await db.execute(select(Feed).filter_by(processed=False))
     feeds = result.scalars().all()
-
     if not feeds:
-        print("[associate_feeds_to_teams] Nessun feed non processato da associare.")
+        print("[associate_feeds_to_teams] Nessun feed da associare.")
         return
 
-    # Prendi tutti i team
     result = await db.execute(select(Team))
     teams = result.scalars().all()
 
-    # Mappa feed_id -> set(team_id)
-    feed_team_map = {}
+    to_insert = []
+    for feed in feeds:
+        text = f"{feed.title} {feed.content}".lower()
+        for team in teams:
+            if team.name.lower() in text:
+                stmt_check = select(feed_per_teams).where(
+                    (feed_per_teams.c.feed_id == feed.id) &
+                    (feed_per_teams.c.team_id == team.id)
+                )
+                exists = await db.execute(stmt_check)
+                if not exists.first():
+                    to_insert.append({"feed_id": feed.id, "team_id": team.id})
+
+    if to_insert:
+        await db.execute(insert(feed_per_teams), to_insert)
+        await db.commit()
+        print(f"[associate_feeds_to_teams] Associazioni create: {len(to_insert)}")
+    else:
+        print("[associate_feeds_to_teams] Nessuna nuova associazione da creare.")
+
+# ---------- Processo principale: lettura e scrittura articoli ----------
+
+async def process_unprocessed_feeds(db: AsyncSession):
+    result = await db.execute(
+        select(Feed)
+        .where(Feed.processed == False)
+        .options(selectinload(Feed.teams))
+        .order_by(Feed.published_at)
+    )
+    feeds = result.scalars().all()
 
     for feed in feeds:
-        feed_text = f"{feed.title} {feed.content}".lower()
-        associated_team_ids = set()
+        if not feed.teams:
+            print(f"[{feed.id}] Nessun team associato. Feed ignorato.")
+            continue
 
-        for team in teams:
-            team_name_lower = team.name.lower()
-            if team_name_lower in feed_text:
-                associated_team_ids.add(team.id)
+        if not feed.content:
+            print(f"[{feed.id}] Feed senza contenuto. Ignorato.")
+            continue
 
-        feed_team_map[feed.id] = associated_team_ids
+        team: Optional[Team] = feed.teams[0]
+        if not team:
+            print(f"[{feed.id}] Nessun team valido associato.")
+            continue
 
-    # Inserisci le associazioni in feed_per_teams se non già esistenti
-    for feed_id, team_ids in feed_team_map.items():
-        for team_id in team_ids:
-            # Verifica se esiste già associazione
-            stmt_check = select(feed_per_teams).where(
-                (feed_per_teams.c.feed_id == feed_id) &
-                (feed_per_teams.c.team_id == team_id)
-            )
-            result = await db.execute(stmt_check)
-            exists = result.first()
-            if not exists:
-                stmt_insert = insert(feed_per_teams).values(feed_id=feed_id, team_id=team_id)
-                await db.execute(stmt_insert)
+        print(f"[{feed.id}] Associato al team: {team.name}, pubblicato: {feed.published_at}")
 
-    await db.commit()
-    print(f"[associate_feeds_to_teams] Associazioni create per {len(feeds)} feed.")
+        article = team.article
 
+        try:
+            if article:
+                print(f"[{feed.id}] → Aggiornamento articolo per team: {team.name}")
+                updated = await update_article_content(article.content, [feed])
+                article.title = updated["title"]
+                article.content = updated["content"]
+            else:
+                print(f"[{feed.id}] → Generazione nuovo articolo per team: {team.name}")
+                generated = await generate_article_content([feed])
+                new_article = Article(
+                    team_id=team.id,
+                    title=generated["title"],
+                    content=generated["content"],
+                )
+                db.add(new_article)
+        except Exception as e:
+            print(f"[{feed.id}] ❌ Errore durante la generazione/aggiornamento AI: {e}")
+            continue  # passa al feed successivo
 
-# ---------- Funzioni principali ----------
-
-async def generate_daily_articles(db: AsyncSession):
-    now = datetime.datetime.now()
-
-    # Prima associa le feeds ai team
-    await associate_feeds_to_teams(db)
-
-    result = await db.execute(select(Feed).filter(Feed.processed == False))
-    new_feeds = result.scalars().all()
-    if not new_feeds:
-        print("[generate_daily_articles] Nessun feed nuovo da processare.")
-        return
-
-    feed_map = {f.id: f for f in new_feeds}
-
-    stmt = select(feed_per_teams.c.team_id, feed_per_teams.c.feed_id).where(
-        feed_per_teams.c.feed_id.in_(feed_map.keys())
-    )
-    result = await db.execute(stmt)
-    associations = result.fetchall()
-
-    feeds_by_team = {}
-    for team_id, feed_id in associations:
-        feeds_by_team.setdefault(team_id, []).append(feed_map[feed_id])
-
-    for team_id, feeds_list in feeds_by_team.items():
-        print(f"[generate_daily_articles] Genero articolo per team_id={team_id} con {len(feeds_list)} feed.")
-        article_data = generate_article_content(feeds_list)
-
-        result = await db.execute(select(Article).filter(Article.team_id == team_id))
-        article = result.scalars().first()
-
-        if article:
-            article.title = article_data.get("title", article.title)
-            article.content = article_data.get("content", article.content)
-            article.summary = article.content[:200]
-            article.last_updated = now
-            article.sources = ", ".join(set(f.feed_source for f in feeds_list))
-        else:
-            article = Article(
-                team_id=team_id,
-                title=article_data.get("title", ""),
-                content=article_data.get("content", ""),
-                summary=article_data.get("content", "")[:200],
-                last_updated=now,
-                sources=", ".join(set(f.feed_source for f in feeds_list))
-            )
-            db.add(article)
-
-        for f in feeds_list:
-            f.processed = True
-
-    await db.commit()
-    print("[generate_daily_articles] Completato.")
-
-
-async def update_hourly_articles(db: AsyncSession):
-    now = datetime.datetime.now()
-
-    # Prima associa le feeds ai team
-    await associate_feeds_to_teams(db)
-
-    result = await db.execute(select(Feed).filter(Feed.processed == False))
-    new_feeds = result.scalars().all()
-    if not new_feeds:
-        print("[update_hourly_articles] Nessun feed nuovo da processare.")
-        return
-
-    feed_map = {f.id: f for f in new_feeds}
-
-    stmt = select(feed_per_teams.c.team_id, feed_per_teams.c.feed_id).where(
-        feed_per_teams.c.feed_id.in_(feed_map.keys())
-    )
-    result = await db.execute(stmt)
-    associations = result.fetchall()
-
-    feeds_by_team = {}
-    for team_id, feed_id in associations:
-        feeds_by_team.setdefault(team_id, []).append(feed_map[feed_id])
-
-    for team_id, feeds_list in feeds_by_team.items():
-        print(f"[update_hourly_articles] Aggiorno articolo per team_id={team_id} con {len(feeds_list)} feed.")
-        result = await db.execute(select(Article).filter(Article.team_id == team_id))
-        article = result.scalars().first()
-
-        if article:
-            article_data = update_article_content(article.content, feeds_list)
-            article.title = article_data.get("title", article.title)
-            article.content = article_data.get("content", article.content)
-            article.summary = article.content[:200]
-            article.last_updated = now
-            existing_sources = set(article.sources.split(", ")) if article.sources else set()
-            new_sources = set(f.feed_source for f in feeds_list)
-            article.sources = ", ".join(existing_sources.union(new_sources))
-        else:
-            article_data = generate_article_content(feeds_list)
-            article = Article(
-                team_id=team_id,
-                title=article_data.get("title", ""),
-                content=article_data.get("content", ""),
-                summary=article_data.get("content", "")[:200],
-                last_updated=now,
-                sources=", ".join(set(f.feed_source for f in feeds_list))
-            )
-            db.add(article)
-
-        for f in feeds_list:
-            f.processed = True
-
-    await db.commit()
-    print("[update_hourly_articles] Completato.")
-
-async def generate_daily_article_for_team(db: AsyncSession, team: Team):
-    now = datetime.datetime.now()
-
-    # Prendi i feed non processati che sono associati al team
-    # Prima associamo i feed a tutti i team (se non è già stato fatto)
-    await associate_feeds_to_teams(db)
-
-    # Recupera feed non processati associati al team
-    stmt = (
-        select(Feed)
-        .join(feed_per_teams, feed_per_teams.c.feed_id == Feed.id)
-        .where(
-            Feed.processed == False,
-            feed_per_teams.c.team_id == team.id
-        )
-    )
-    result = await db.execute(stmt)
-    feeds_list = result.scalars().all()
-
-    if not feeds_list:
-        print(f"[generate_daily_article_for_team] Nessun feed nuovo per team_id={team.id}")
-        return
-
-    print(f"[generate_daily_article_for_team] Genero articolo per team_id={team.id} con {len(feeds_list)} feed.")
-    
-    # Controlla se esiste già un articolo per questo team
-    result = await db.execute(select(Article).filter(Article.team_id == team.id))
-    article = result.scalars().first()
-
-    if article:
-        # Aggiorna articolo esistente
-        article_data = update_article_content(article.content, feeds_list)
-        article.title = article_data.get("title", article.title)
-        article.content = article_data.get("content", article.content)
-        article.summary = article.content[:200]
-        article.last_updated = now
-        existing_sources = set(article.sources.split(", ")) if article.sources else set()
-        new_sources = set(f.feed_source for f in feeds_list)
-        article.sources = ", ".join(existing_sources.union(new_sources))
-    else:
-        # Crea nuovo articolo
-        article_data = generate_article_content(feeds_list)
-        article = Article(
-            team_id=team.id,
-            title=article_data.get("title", ""),
-            content=article_data.get("content", ""),
-            summary=article_data.get("content", "")[:200],
-            last_updated=now,
-            sources=", ".join(set(f.feed_source for f in feeds_list))
-        )
-        db.add(article)
-
-    # Segna i feed come processati
-    for f in feeds_list:
-        f.processed = True
-
-    await db.commit()
-    print(f"[generate_daily_article_for_team] Articolo generato/aggiornato per team_id={team.id}")
+        try:
+            feed.processed = True
+            await db.commit()
+            print(f"[{feed.id}] ✅ Feed processato correttamente.")
+        except Exception as e:
+            print(f"[{feed.id}] ❌ Errore durante il commit DB: {e}")
+            await db.rollback()
