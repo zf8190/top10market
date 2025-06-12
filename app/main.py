@@ -73,6 +73,7 @@ async def read_article(team_name: str, request: Request, db: AsyncSession = Depe
     stmt = (
         select(Article)
         .join(Article.team)
+        .options(joinedload(Article.team))  # eager load anche qui per evitare lazy load error
         .where(Team.name.ilike(team_name))
     )
     result = await db.execute(stmt)
