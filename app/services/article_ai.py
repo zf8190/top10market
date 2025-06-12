@@ -20,9 +20,9 @@ def generate_article_content(feeds: List[Feed]) -> dict:
     combined_text = "\n\n".join([f"Titolo: {f.title}\nTesto: {f.content}" for f in feeds])
     prompt = (
         "Sei un esperto giornalista sportivo.\n"
-        "Genera un articolo che sintetizzi le notizie dei seguenti feed sul calciomercato.\n"
+        "Genera un articolo che riorganizzi, senza sintetizzare, le notizie dei seguenti feed sul calciomercato.\n"
         "Scrivi un titolo accattivante e un testo articolato.\n"
-        "Non aggiungere informazioni non presenti.\n"
+        "Basati esclusivamente su quanto presente nei feed letti.\n"
         f"Feed:\n{combined_text}\n\n"
         "Rispondi in formato JSON con due campi: 'title' e 'content'."
     )
@@ -43,9 +43,9 @@ def update_article_content(old_content: str, new_feeds: List[Feed]) -> dict:
     combined_new_text = "\n\n".join([f"Titolo: {f.title}\nTesto: {f.content}" for f in new_feeds])
     prompt = (
         "Sei un esperto giornalista sportivo.\n"
-        "Aggiorna questo articolo con le nuove notizie qui sotto.\n"
-        "Mantieni tutte le info importanti precedenti, aggiorna se serve, aggiungi nuove notizie.\n"
-        "Non cancellare informazioni utili già presenti.\n"
+        "Aggiorna questo articolo integrando le nuove informazioni ricevute con i nuovi feed.\n"
+        "Aggiorna eventuali informazioni obsolete e aggiungi le nuove.\n"
+        "senza cancellare informazioni utili già presenti.\n"
         f"Articolo precedente:\n{old_content}\n\n"
         f"Nuove notizie:\n{combined_new_text}\n\n"
         "Rispondi in formato JSON con 'title' e 'content' aggiornati."
