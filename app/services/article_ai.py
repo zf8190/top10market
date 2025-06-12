@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.feed import Feed
 from app.models.article import Article
-from app.models.association_tables import feed_per_teams  # la tabella many-to-many
+from app.models.feed_per_team import feed_per_teams  # la tabella many-to-many
 
 import openai
 
