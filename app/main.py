@@ -15,15 +15,10 @@ from app.models.base import Base
 from app.config import STATIC_URL
 from app.api.jobs import router as jobs_router
 
-from app.db import engine  # importa l'engine
-from app.models.feed_per_team import feed_per_teams  # importa la tabella
-
-def create_feed_per_team_table():
-    feed_per_teams.create(bind=engine, checkfirst=True)  # checkfirst evita duplicati
+from app.models.feed_per_team import feed_per_teams  # tabella associazione
 
 app = FastAPI()
 
-# Inizializza le tabelle al primo avvio
 @app.on_event("startup")
 async def startup_event():
     db_url = os.getenv("DATABASE_URL", "❌ DATABASE_URL non trovato")
@@ -36,21 +31,20 @@ async def startup_event():
     except Exception as e:
         print("❌ Errore nella connessione al database:", e)
 
-    # Creazione delle tabelle
     try:
         async with get_engine().begin() as conn:
+            # Crea tutte le tabelle dei modelli (Articolo, Team, ecc)
             await conn.run_sync(Base.metadata.create_all)
+            # Crea esplicitamente la tabella feed_per_teams (table object)
+            await conn.run_sync(feed_per_teams.create, checkfirst=True)
         print("✅ Tabelle del database create (se non esistevano)")
     except Exception as e:
         print("❌ Errore nella creazione delle tabelle:", e)
 
-# Includi le rotte API
+# Include router e static
 app.include_router(jobs_router, prefix="/api")
-
-# Static files (CSS, immagini, ecc.)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
-# Jinja2 templates
 templates = Jinja2Templates(directory="app/templates")
 
 @app.get("/", response_class=HTMLResponse)
@@ -86,5 +80,3 @@ async def read_article(team_name: str, request: Request, db: AsyncSession = Depe
             "STATIC_URL": STATIC_URL
         }
     )
-
-create_feed_per_team_table()
