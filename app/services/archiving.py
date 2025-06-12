@@ -2,6 +2,8 @@ import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.article import Article
 from app.models.article_history import ArticleHistory
+from sqlalchemy.future import select
+
 
 async def archive_articles(db: AsyncSession):
     """

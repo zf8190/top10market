@@ -5,23 +5,20 @@ from datetime import datetime
 from app.db import async_session
 from app.services.archiving import archive_articles
 from app.services.article_ai import (
-    generate_article_content,
-    update_article_content
+    generate_daily_articles,
+    update_hourly_articles
 )
 from app.services.feed_ingestion import ingest_feeds
 
 scheduler = AsyncIOScheduler()
 
 def schedule_jobs():
-    # Ogni giorno alle 08:00: archivio articoli, genero nuovi e aggiorno feed
     scheduler.add_job(
         daily_morning_job,
         trigger=CronTrigger(hour=8, minute=0),
         id="daily_morning_job",
         replace_existing=True,
     )
-
-    # Ogni ora dalle 9 alle 21: aggiorno articoli e feed
     scheduler.add_job(
         hourly_update_job,
         trigger=CronTrigger(hour="9-21", minute=0),
@@ -31,24 +28,20 @@ def schedule_jobs():
 
 async def daily_morning_job():
     print(f"[{datetime.now()}] Starting daily morning job...")
-
     async with async_session() as db:
         success = await archive_articles(db)
         if success:
             await ingest_feeds(db)
             print(f"[{datetime.now()}] New feeds ingested successfully.")
-
-            await generate_article_content(db)
+            await generate_daily_articles(db)  # CORRETTO
 
     print(f"[{datetime.now()}] Daily morning job finished.")
 
 async def hourly_update_job():
     print(f"[{datetime.now()}] Starting hourly update job...")
-
     async with async_session() as db:
         await ingest_feeds(db)
         print(f"[{datetime.now()}] New feeds ingested successfully.")
-
-        await update_article_content(db)
+        await update_hourly_articles(db)  # CORRETTO
 
     print(f"[{datetime.now()}] Hourly update job finished.")
