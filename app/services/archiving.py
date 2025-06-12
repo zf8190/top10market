@@ -3,6 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.article import Article
 from app.models.article_history import ArticleHistory
 from sqlalchemy.future import select
+from sqlalchemy import delete
+
 
 
 async def archive_articles(db: AsyncSession):
