@@ -15,6 +15,12 @@ from app.models.base import Base
 from app.config import STATIC_URL
 from app.api.jobs import router as jobs_router
 
+from app.db import engine  # importa l'engine
+from app.models.feed_per_team import feed_per_teams  # importa la tabella
+
+def create_feed_per_team_table():
+    feed_per_teams.create(bind=engine, checkfirst=True)  # checkfirst evita duplicati
+
 app = FastAPI()
 
 # Inizializza le tabelle al primo avvio
@@ -80,3 +86,5 @@ async def read_article(team_name: str, request: Request, db: AsyncSession = Depe
             "STATIC_URL": STATIC_URL
         }
     )
+
+create_feed_per_team_table()
