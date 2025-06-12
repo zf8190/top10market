@@ -5,6 +5,7 @@ from fastapi.templating import Jinja2Templates
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import joinedload
 from sqlalchemy import text
 import os
 
@@ -33,9 +34,7 @@ async def startup_event():
 
     try:
         async with get_engine().begin() as conn:
-            # Crea tutte le tabelle dei modelli (Articolo, Team, ecc)
             await conn.run_sync(Base.metadata.create_all)
-            # Crea esplicitamente la tabella feed_per_teams (table object)
             await conn.run_sync(feed_per_teams.create, checkfirst=True)
         print("✅ Tabelle del database create (se non esistevano)")
     except Exception as e:
@@ -50,7 +49,7 @@ templates = Jinja2Templates(directory="app/templates")
 @app.get("/", response_class=HTMLResponse)
 async def read_home(request: Request, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(Article).join(Team).order_by(Team.name)
+        select(Article).options(joinedload(Article.team)).order_by(Team.name)
     )
     articles = result.scalars().all()
     return templates.TemplateResponse(
