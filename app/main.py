@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload
 from sqlalchemy import text
+
 import os
 
 from app.db import get_db, get_engine
@@ -15,8 +16,8 @@ from app.models.team import Team
 from app.models.base import Base
 from app.config import STATIC_URL
 from app.api.jobs import router as jobs_router
-
 from app.models.feed_per_team import feed_per_teams  # tabella associazione
+
 
 app = FastAPI()
 
@@ -46,11 +47,16 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 templates = Jinja2Templates(directory="app/templates")
 
+
 @app.get("/", response_class=HTMLResponse)
 async def read_home(request: Request, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(Article).options(joinedload(Article.team)).order_by(Team.name)
+    stmt = (
+        select(Article)
+        .join(Article.team)  # join esplicito per poter ordinare su Team.name
+        .options(joinedload(Article.team))  # carica la relazione team
+        .order_by(Team.name)
     )
+    result = await db.execute(stmt)
     articles = result.scalars().all()
     return templates.TemplateResponse(
         "index.html",
@@ -61,11 +67,15 @@ async def read_home(request: Request, db: AsyncSession = Depends(get_db)):
         }
     )
 
+
 @app.get("/team/{team_name}", response_class=HTMLResponse)
 async def read_article(team_name: str, request: Request, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(Article).join(Team).where(Team.name.ilike(team_name))
+    stmt = (
+        select(Article)
+        .join(Article.team)
+        .where(Team.name.ilike(team_name))
     )
+    result = await db.execute(stmt)
     article = result.scalars().first()
 
     if not article:
