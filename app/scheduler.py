@@ -8,7 +8,8 @@ from app.db import async_session
 from app.services.archiving import archive_articles
 from app.services.article_ai import (
     generate_daily_articles,
-    update_hourly_articles
+    update_hourly_articles,
+    generate_daily_article_for_team
 )
 from app.services.feed_ingestion import ingest_feeds
 from app.services.article_ai import associate_feeds_to_teams
