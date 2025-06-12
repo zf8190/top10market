@@ -30,10 +30,10 @@ async def daily_morning_job():
     print(f"[{datetime.now()}] Starting daily morning job...")
     async with async_session() as db:
         success = await archive_articles(db)
-        if success:
-            await ingest_feeds(db)
-            print(f"[{datetime.now()}] New feeds ingested successfully.")
-            await generate_daily_articles(db)  # CORRETTO
+        
+        await ingest_feeds(db)
+        print(f"[{datetime.now()}] New feeds ingested successfully.")
+        await generate_daily_articles(db)  # CORRETTO
 
     print(f"[{datetime.now()}] Daily morning job finished.")
 
