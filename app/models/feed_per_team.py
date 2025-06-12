@@ -10,4 +10,4 @@ feed_per_teams = Table(
     Column("feed_id", Integer, ForeignKey("feeds.id"), primary_key=True),
 )
 
-# Questo file definisce la tabella di associazione tra i team e i feed
+# Questo file definisce la tabella di associazione tra i team e i feed o feeds
