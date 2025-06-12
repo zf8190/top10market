@@ -2,7 +2,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from datetime import datetime
 import asyncio
 
-from app.scheduler import daily_morning_job, hourly_update_job, archive_job
+from app.scheduler import daily_morning_job, hourly_update_job, archive_articles_job
 
 router = APIRouter()
 
@@ -29,12 +29,8 @@ async def run_hourly_update_job(background_tasks: BackgroundTasks):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/jobs/archive")
-async def run_archive_job(background_tasks: BackgroundTasks):
-    """
-    Avvia il job di archiviazione degli articoli in background.
-    """
-    try:
-        background_tasks.add_task(archive_job)
-        return {"status": "started", "job": "archive_job", "started_at": str(datetime.utcnow())}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+async def archive_articles_job():
+    print(f"[{datetime.now()}] Starting archive articles job...")
+    async with async_session() as db:
+        success = await archive_articles(db)
+    print(f"[{datetime.now()}] Archive articles job finished.")
