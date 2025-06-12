@@ -27,7 +27,7 @@ def generate_article_content(feeds: List[Feed]) -> dict:
         "Rispondi in formato JSON con due campi: 'title' e 'content'."
     )
 
-    response = openai.ChatCompletion.create(
+    response = openai.chat.completions.create(
         model=MODEL,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.7,
@@ -51,7 +51,7 @@ def update_article_content(old_content: str, new_feeds: List[Feed]) -> dict:
         "Rispondi in formato JSON con 'title' e 'content' aggiornati."
     )
 
-    response = openai.ChatCompletion.create(
+    response = openai.chat.completions.create(
         model=MODEL,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.7,
