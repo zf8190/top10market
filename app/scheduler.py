@@ -63,7 +63,7 @@ async def hourly_update_job():
 
         for team in teams:
             if team.article:
-                await generate_daily_articles(db, team)
+                await generate_daily_article_for_team(db, team)
             else:
                 await update_hourly_articles(db, team)
 

@@ -226,3 +226,62 @@ async def update_hourly_articles(db: AsyncSession):
 
     await db.commit()
     print("[update_hourly_articles] Completato.")
+
+async def generate_daily_article_for_team(db: AsyncSession, team: Team):
+    now = datetime.datetime.now()
+
+    # Prendi i feed non processati che sono associati al team
+    # Prima associamo i feed a tutti i team (se non è già stato fatto)
+    await associate_feeds_to_teams(db)
+
+    # Recupera feed non processati associati al team
+    stmt = (
+        select(Feed)
+        .join(feed_per_teams, feed_per_teams.c.feed_id == Feed.id)
+        .where(
+            Feed.processed == False,
+            feed_per_teams.c.team_id == team.id
+        )
+    )
+    result = await db.execute(stmt)
+    feeds_list = result.scalars().all()
+
+    if not feeds_list:
+        print(f"[generate_daily_article_for_team] Nessun feed nuovo per team_id={team.id}")
+        return
+
+    print(f"[generate_daily_article_for_team] Genero articolo per team_id={team.id} con {len(feeds_list)} feed.")
+    
+    # Controlla se esiste già un articolo per questo team
+    result = await db.execute(select(Article).filter(Article.team_id == team.id))
+    article = result.scalars().first()
+
+    if article:
+        # Aggiorna articolo esistente
+        article_data = update_article_content(article.content, feeds_list)
+        article.title = article_data.get("title", article.title)
+        article.content = article_data.get("content", article.content)
+        article.summary = article.content[:200]
+        article.last_updated = now
+        existing_sources = set(article.sources.split(", ")) if article.sources else set()
+        new_sources = set(f.feed_source for f in feeds_list)
+        article.sources = ", ".join(existing_sources.union(new_sources))
+    else:
+        # Crea nuovo articolo
+        article_data = generate_article_content(feeds_list)
+        article = Article(
+            team_id=team.id,
+            title=article_data.get("title", ""),
+            content=article_data.get("content", ""),
+            summary=article_data.get("content", "")[:200],
+            last_updated=now,
+            sources=", ".join(set(f.feed_source for f in feeds_list))
+        )
+        db.add(article)
+
+    # Segna i feed come processati
+    for f in feeds_list:
+        f.processed = True
+
+    await db.commit()
+    print(f"[generate_daily_article_for_team] Articolo generato/aggiornato per team_id={team.id}")
