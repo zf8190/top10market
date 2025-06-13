@@ -1,17 +1,12 @@
 import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.models.article import Article
-from app.models.article_history import ArticleHistory
 from sqlalchemy.future import select
 from sqlalchemy import delete
 
-
+from app.models.article import Article
+from app.models.article_history import ArticleHistory
 
 async def archive_articles(db: AsyncSession):
-    """
-    Archivia tutti gli articoli correnti nella tabella ArticleHistory.
-    Se l’archiviazione va a buon fine, elimina gli articoli correnti.
-    """
     today = datetime.date.today()
     archive_date = today - datetime.timedelta(days=1)
 
@@ -20,11 +15,12 @@ async def archive_articles(db: AsyncSession):
 
     for art in articles:
         archived = ArticleHistory(
+            article_id=art.id,
             title=art.title,
             content=art.content,
             summary=art.summary,
-            archived_date=archive_date,
-            sources=art.sources
+            sources=art.sources,
+            archived_at=datetime.datetime.combine(archive_date, datetime.time.min)  # facoltativo
         )
         db.add(archived)
 
@@ -34,6 +30,6 @@ async def archive_articles(db: AsyncSession):
         await db.rollback()
         raise e
 
-    # Solo se commit ha avuto successo:
+    # Elimina tutti gli articoli dopo il commit della copia
     await db.execute(delete(Article))
     await db.commit()
