@@ -20,7 +20,6 @@ async def archive_articles(db: AsyncSession):
 
     for art in articles:
         archived = ArticleHistory(
-            team_id=art.team_id,
             title=art.title,
             content=art.content,
             summary=art.summary,
