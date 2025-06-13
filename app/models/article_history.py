@@ -7,7 +7,7 @@ class ArticleHistory(Base):
     __tablename__ = "article_history"
 
     id = Column(Integer, primary_key=True, index=True)
-    article_id = Column(Integer, ForeignKey("articles.id"), nullable=False)
+    article_id = Column(Integer, nullable=False)
     title = Column(String(255), nullable=False)
     summary = Column(Text, nullable=True)
     content = Column(Text, nullable=True)
