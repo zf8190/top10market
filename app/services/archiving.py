@@ -23,7 +23,6 @@ async def archive_articles(db: AsyncSession):
             title=art.title,
             content=art.content,
             summary=art.summary,
-            last_updated=art.last_updated,
             archived_date=archive_date,
             sources=art.sources
         )
