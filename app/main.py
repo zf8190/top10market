@@ -16,7 +16,6 @@ from app.models.team import Team
 from app.models.base import Base
 from app.config import STATIC_URL
 from app.api.jobs import router as jobs_router
-from app.models.feed_per_team import feed_per_teams  # tabella associazione
 
 
 app = FastAPI()
