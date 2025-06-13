@@ -4,10 +4,12 @@ from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, insert
 from sqlalchemy.orm import selectinload
+
 from app.models.feed import Feed
 from app.models.article import Article
 from app.models.team import Team
 from app.models.feed_per_team import feed_per_teams  # tabella many-to-many
+
 import openai
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -98,7 +100,9 @@ async def process_unprocessed_feeds(db: AsyncSession):
     result = await db.execute(
         select(Feed)
         .where(Feed.processed == False)
-        .options(selectinload(Feed.teams))
+        .options(
+            selectinload(Feed.teams).selectinload(Team.article)  # preload tutto
+        )
         .order_by(Feed.published_at)
     )
     feeds = result.scalars().all()
@@ -138,7 +142,7 @@ async def process_unprocessed_feeds(db: AsyncSession):
                 db.add(new_article)
         except Exception as e:
             print(f"[{feed.id}] ❌ Errore durante la generazione/aggiornamento AI: {e}")
-            continue  # passa al feed successivo
+            continue
 
         try:
             feed.processed = True
