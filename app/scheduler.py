@@ -5,7 +5,6 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload
 
 from app.db import async_session
-from app.services.archiving import archive_articles
 from app.services.article_ai import process_unprocessed_feeds
 from app.services.feed_ingestion import ingest_feeds
 from app.services.article_ai import associate_feeds_to_teams
@@ -14,12 +13,6 @@ from app.models.team import Team
 scheduler = AsyncIOScheduler()
 
 def schedule_jobs():
-    scheduler.add_job(
-        archive_articles_job,
-        trigger=CronTrigger(hour=7, minute=45),
-        id="archive_articles_job",
-        replace_existing=True,
-    )
     scheduler.add_job(
         process_unprocessed_feeds,
         trigger=CronTrigger(minute="15,45", hour="8-22"),
@@ -32,12 +25,6 @@ def schedule_jobs():
         id="ingest_and_associate_job",
         replace_existing=True,
     )
-
-async def archive_articles_job():
-    print(f"[{datetime.now()}] Starting archive articles job...")
-    async with async_session() as db:
-        success = await archive_articles(db)
-    print(f"[{datetime.now()}] Archive articles job finished.")
 
 async def process_unprocessed_feeds_job():
     print(f"[{datetime.now()}] Starting hourly update job...")
