@@ -10,9 +10,9 @@ from app.models.article import Article
 from app.models.team import Team
 from app.models.feed_per_team import feed_per_teams  # tabella many-to-many
 
-import openai
+from openai import AsyncOpenAI
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 MODEL = "gpt-3.5-turbo"
 
 # ---------- Funzioni AI async ----------
@@ -28,11 +28,11 @@ async def generate_article_content(feeds: List[Feed]) -> dict:
         "Rispondi in formato JSON con due campi: 'title' e 'content'."
     )
     try:
-        response = await openai.ChatCompletion.acreate(
+        response = await client.chat.completions.create(
             model=MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,
-            max_tokens=1000
+            max_tokens=1000,
         )
         return json.loads(response.choices[0].message.content)
     except Exception as e:
@@ -51,11 +51,11 @@ async def update_article_content(old_content: str, new_feeds: List[Feed]) -> dic
         "Rispondi in formato JSON con 'title' e 'content' aggiornati."
     )
     try:
-        response = await openai.ChatCompletion.acreate(
+        response = await client.chat.completions.create(
             model=MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,
-            max_tokens=1000
+            max_tokens=1000,
         )
         return json.loads(response.choices[0].message.content)
     except Exception as e:
@@ -101,7 +101,7 @@ async def process_unprocessed_feeds(db: AsyncSession):
         select(Feed)
         .where(Feed.processed == False)
         .options(
-            selectinload(Feed.teams).selectinload(Team.article)  # preload tutto
+            selectinload(Feed.teams).selectinload(Team.article)  # preload articoli collegati
         )
         .order_by(Feed.published_at)
     )
